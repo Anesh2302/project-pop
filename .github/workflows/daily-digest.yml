@@ -2,21 +2,21 @@ name: Daily Project Digest
 
 on:
   schedule:
-    - cron: '0 9 * * *'
-  workflow_dispatch:
+    - cron: '0 9 * * *'   # Every day at 9:00 AM UTC
+  workflow_dispatch:        # Allows manual trigger from GitHub UI
 
 jobs:
   digest:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: write
+      issues: write         # Needed to create GitHub Issues
 
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0    # Full history so we can diff yesterday's changes
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,6 +33,7 @@ jobs:
           REPO_NAME: ${{ github.repository }}
         run: |
           python scripts/collect_activity.py > activity.json
+          echo "Activity collected successfully"
 
       - name: Generate AI digest
         env:
@@ -41,6 +42,7 @@ jobs:
           REPO_NAME: ${{ github.repository }}
         run: |
           python scripts/generate_digest.py activity.json > digest.md
+          echo "Digest generated successfully"
 
       - name: Post digest as GitHub Issue
         env:
