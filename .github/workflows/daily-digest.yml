@@ -1,0 +1,66 @@
+name: Daily Project Digest
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install anthropic PyGithub requests
+
+      - name: Collect GitHub activity
+        id: collect
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_NAME: ${{ github.repository }}
+        run: |
+          python scripts/collect_activity.py > activity.json
+
+      - name: Generate AI digest
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_NAME: ${{ github.repository }}
+        run: |
+          python scripts/generate_digest.py activity.json > digest.md
+
+      - name: Post digest as GitHub Issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_NAME: ${{ github.repository }}
+        run: python scripts/deliver_issue.py digest.md
+
+      - name: Send digest via Email
+        env:
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          DIGEST_EMAIL_TO: ${{ secrets.DIGEST_EMAIL_TO }}
+          REPO_NAME: ${{ github.repository }}
+        run: python scripts/deliver_email.py digest.md
+
+      - name: Upload digest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-digest-${{ github.run_number }}
+          path: digest.md
+          retention-days: 30
