@@ -1,10 +1,9 @@
-name: Daily Project Digest — Work-Flow-
 
+name: Daily Project Digest — Work-Flow-
 on:
   schedule:
     - cron: '0 9 * * *'
   workflow_dispatch:
-
 jobs:
   digest:
     runs-on: ubuntu-latest
@@ -16,35 +15,29 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install dependencies
         run: pip install PyGithub requests
-
       - name: Collect GitHub activity
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_OWNER: Anesh2302
           WATCHED_REPOS: "cyberlab,talentos,nexus-os,customer-service-bot,IDS_Project,CarSimulator,nexus-zero-final,simonpeterai,nfs_mw_3d_game"
         run: python scripts/collect_activity.py > activity.json
-
       - name: Generate AI digest
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_OWNER: Anesh2302
         run: python scripts/generate_digest.py activity.json > digest.md
-
       - name: Post digest as GitHub Issue
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO_NAME: ${{ github.repository }}
         run: python scripts/deliver_issue.py digest.md
-
       - name: Send digest via Email
         env:
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
@@ -54,7 +47,6 @@ jobs:
           DIGEST_EMAIL_TO: ${{ secrets.DIGEST_EMAIL_TO }}
           REPO_NAME: ${{ github.repository }}
         run: python scripts/deliver_email.py digest.md
-
       - name: Upload digest artifact
         uses: actions/upload-artifact@v4
         with:
