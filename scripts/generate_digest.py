@@ -83,7 +83,8 @@ def main():
         data=payload,
         headers={
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
+            "Authorization": f"Bearer {api_key}",
+            "User-Agent": "python-requests/2.31.0"
         },
         method="POST"
     )
@@ -99,3 +100,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
