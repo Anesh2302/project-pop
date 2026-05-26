@@ -64,29 +64,34 @@ def main():
 
     activity = load_activity(sys.argv[1])
     prompt   = build_prompt(activity)
-    api_key  = os.environ.get("GEMINI_API_KEY", "").strip()
+    api_key  = os.environ.get("GROQ_API_KEY", "").strip()
 
     if not api_key:
-        print("ERROR: GEMINI_API_KEY is empty or not set", file=sys.stderr)
+        print("ERROR: GROQ_API_KEY is empty or not set", file=sys.stderr)
         sys.exit(1)
 
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    url = "https://api.groq.com/openai/v1/chat/completions"
 
     payload = json.dumps({
-        "contents": [{"parts": [{"text": prompt}]}]
+        "model": "llama-3.3-70b-versatile",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 1024
     }).encode("utf-8")
 
     req = urllib.request.Request(
         url,
         data=payload,
-        headers={"Content-Type": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        },
         method="POST"
     )
 
     try:
         with urllib.request.urlopen(req) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-        print(data["candidates"][0]["content"]["parts"][0]["text"])
+        print(data["choices"][0]["message"]["content"])
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8")
         print(f"ERROR {e.code}: {body}", file=sys.stderr)
