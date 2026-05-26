@@ -31,15 +31,15 @@ Changed files: {json.dumps([f['filename'] for f in files[:10]])}
 """
 
 def build_prompt(activity: dict) -> str:
-    owner     = activity["owner"]
-    window    = activity["window_hours"]
-    generated = activity["generated_at"]
-    repos     = activity.get("repos", [])
+    owner         = activity["owner"]
+    window        = activity["window_hours"]
+    generated     = activity["generated_at"]
+    repos         = activity.get("repos", [])
     total_commits = sum(len(r.get("commits", [])) for r in repos)
     total_prs     = sum(len(r.get("pull_requests", [])) for r in repos)
     total_issues  = sum(len(r.get("issues", [])) for r in repos)
     active_repos  = [r["repo"].split("/")[-1] for r in repos if r.get("commits")]
-    sections = "\n".join(repo_summary(r) for r in repos)
+    sections      = "\n".join(repo_summary(r) for r in repos)
     return f"""You are a senior engineering lead reviewing GitHub activity.
 Developer: {owner} | Period: last {window} hours | Generated: {generated}
 Totals: {total_commits} commits, {total_prs} PRs, {total_issues} issues across {len(repos)} repos.
@@ -70,9 +70,7 @@ def main():
         print("ERROR: GEMINI_API_KEY is empty or not set", file=sys.stderr)
         sys.exit(1)
 
-    print(f"DEBUG: API key starts with: {api_key[:8]}...", file=sys.stderr)
-
-   url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
 
     payload = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}]
@@ -96,4 +94,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
