@@ -13,7 +13,6 @@ from github import Github
 
 REPO_NAME = os.environ["REPO_NAME"]
 TOKEN = os.environ["GITHUB_TOKEN"]
-
 g = Github(TOKEN)
 repo = g.get_repo(REPO_NAME)
 
