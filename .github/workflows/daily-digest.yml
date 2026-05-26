@@ -1,22 +1,21 @@
-name: Daily Project Digest
+name: Daily Project Digest — Work-Flow-
 
 on:
   schedule:
-    - cron: '0 9 * * *'   # Every day at 9:00 AM UTC
-  workflow_dispatch:        # Allows manual trigger from GitHub UI
+    - cron: '0 9 * * *'
+  workflow_dispatch:
 
 jobs:
   digest:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      issues: write         # Needed to create GitHub Issues
-
+      issues: write
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0    # Full history so we can diff yesterday's changes
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -27,22 +26,18 @@ jobs:
         run: pip install anthropic PyGithub requests
 
       - name: Collect GitHub activity
-        id: collect
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO_NAME: ${{ github.repository }}
-        run: |
-          python scripts/collect_activity.py > activity.json
-          echo "Activity collected successfully"
+          GITHUB_OWNER: Anesh2302
+          WATCHED_REPOS: "cyberlab,talentos,nexus-os,customer-service-bot,IDS_Project,CarSimulator,nexus-zero-final,simonpeterai,nfs_mw_3d_game"
+        run: python scripts/collect_activity.py > activity.json
 
       - name: Generate AI digest
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO_NAME: ${{ github.repository }}
-        run: |
-          python scripts/generate_digest.py activity.json > digest.md
-          echo "Digest generated successfully"
+          GITHUB_OWNER: Anesh2302
+        run: python scripts/generate_digest.py activity.json > digest.md
 
       - name: Post digest as GitHub Issue
         env:
