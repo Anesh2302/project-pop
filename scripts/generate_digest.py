@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """
 generate_digest.py
-Reads activity JSON, calls Claude AI, writes a clean markdown digest to stdout.
+Reads multi-repo activity JSON, calls Claude, outputs markdown digest.
 Usage: python generate_digest.py activity.json > digest.md
 """
-
 import os
 import json
 import sys
@@ -15,84 +14,77 @@ def load_activity(path: str) -> dict:
     with open(path) as f:
         return json.load(f)
 
-def build_prompt(activity: dict) -> str:
-    repo = activity["repo"]
-    window = activity["window_hours"]
-    generated = activity["generated_at"]
+def repo_summary(r: dict) -> str:
+    if "error" in r:
+        return f"### {r['repo']}\n⚠️ Could not fetch: {r['error']}\n"
 
-    commits = activity.get("commits", [])
-    prs = activity.get("pull_requests", [])
-    issues = activity.get("issues", [])
-    ci_runs = activity.get("ci_runs", [])
-    changed_files = activity.get("changed_files", [])
+    commits   = r.get("commits", [])
+    prs       = r.get("pull_requests", [])
+    issues    = r.get("issues", [])
+    ci_runs   = r.get("ci_runs", [])
+    files     = r.get("changed_files", [])
+    failed_ci = [x for x in ci_runs if x.get("conclusion") == "failure"]
+    merged_pr = [p for p in prs if p.get("merged")]
+    open_pr   = [p for p in prs if p["state"] == "open" and not p.get("merged")]
+    bugs      = [i for i in issues if any(l in ["bug","critical","blocker"] for l in i.get("labels", []))]
 
-    failed_ci = [r for r in ci_runs if r.get("conclusion") == "failure"]
-    merged_prs = [p for p in prs if p.get("merged")]
-    open_prs = [p for p in prs if p["state"] == "open" and not p.get("merged")]
-    bug_issues = [i for i in issues if any(l in ["bug", "critical", "blocker"] for l in i.get("labels", []))]
-
-    data_summary = f"""
-Repository: {repo}
-Period: last {window} hours (as of {generated})
-
-COMMITS ({len(commits)} total):
-{json.dumps(commits[:10], indent=2)}
-
-PULL REQUESTS ({len(prs)} updated):
-- Merged: {len(merged_prs)}
-- Open: {len(open_prs)}
-{json.dumps(prs[:10], indent=2)}
-
-ISSUES ({len(issues)} updated):
-- Bug/critical: {len(bug_issues)}
-{json.dumps(issues[:10], indent=2)}
-
-CI RUNS ({len(ci_runs)} recent):
-- Failed: {len(failed_ci)}
-{json.dumps(ci_runs, indent=2)}
-
-CHANGED FILES ({len(changed_files)} files):
-{json.dumps(changed_files[:20], indent=2)}
+    return f"""
+### {r['repo']}
+Commits: {len(commits)} | PRs open: {len(open_pr)} merged: {len(merged_pr)} | Issues: {len(issues)} (bugs: {len(bugs)}) | CI failures: {len(failed_ci)} | Files changed: {len(files)}
+Recent commits: {json.dumps([c['message'] for c in commits[:5]])}
+CI: {json.dumps([{"name": x["name"], "conclusion": x["conclusion"]} for x in ci_runs])}
+Changed files: {json.dumps([f['filename'] for f in files[:10]])}
 """
 
-    return f"""You are a senior engineering lead reviewing your team's GitHub repository activity.
+def build_prompt(activity: dict) -> str:
+    owner     = activity["owner"]
+    window    = activity["window_hours"]
+    generated = activity["generated_at"]
+    repos     = activity.get("repos", [])
 
-Analyze the following data from the last 24 hours and write a concise daily digest in Markdown.
+    total_commits = sum(len(r.get("commits", [])) for r in repos)
+    total_prs     = sum(len(r.get("pull_requests", [])) for r in repos)
+    total_issues  = sum(len(r.get("issues", [])) for r in repos)
+    active_repos  = [r["repo"].split("/")[-1] for r in repos if r.get("commits")]
 
-Structure it exactly like this:
+    sections = "\n".join(repo_summary(r) for r in repos)
 
-# Daily Digest — {repo}
+    return f"""You are a senior engineering lead reviewing GitHub activity across a portfolio of projects.
+All repos belong to developer: {owner}
+Period: last {window} hours (as of {generated})
+Portfolio totals: {total_commits} commits, {total_prs} PRs, {total_issues} issues across {len(repos)} repos.
+Active repos (had commits): {active_repos}
+
+Per-repo breakdown:
+{sections}
+
+Write a concise daily digest in this exact Markdown structure:
+
+# Daily Digest — {owner}/Work-Flow-
 *{datetime.now(timezone.utc).strftime("%A, %B %-d %Y")}*
 
-## Summary
-2-3 sentence overview of the day's activity — what was the main theme of work?
+## Overall pulse
+2-3 sentences: what was the main theme of work today across all projects?
 
-## Commits & code changes
-Bullet summary of notable commits and file changes. Group by theme if possible.
+## Project activity
+For EACH repo, one bullet line:
+- **repo-name** — what happened (or "quiet day" if nothing)
 
-## Pull requests
-List open, merged, and any stale or draft PRs that need attention.
-
-## Issues
-Any new, updated, or critical issues. Flag bugs and blockers clearly.
-
-## CI / build status
-Status of CI pipelines. Call out failures with urgency if any.
+## Spotlight: wins & concerns
+Flag any: CI failures, stale PRs, open bugs, or repos with zero activity for 3+ days.
+Also flag any repos showing strong momentum worth noting.
 
 ## Action items
-3-5 concrete things the team should do today based on this data. Be specific.
+4-6 specific things to do TODAY across the portfolio. Format: `[repo-name]` what to do.
 
 ---
-*Generated by GitHub Project Monitor · project-pop*
+*Generated by project-pop · Monitoring {len(repos)} repos*
 
 Rules:
-- Be direct and useful, not verbose
-- Use checkmark for good, warning for needs attention, X for failures/blockers
-- If nothing happened in a section, say "Nothing to report" — don't skip the section
-- Keep the whole digest under 500 words
-
-Here is the data:
-{data_summary}
+- ✅ good, ⚠️ needs attention, ❌ failure/blocker
+- Under 600 words total
+- If a section has nothing to report, write "Nothing to report" — don't skip it
+- Be direct, not verbose
 """
 
 def main():
@@ -101,18 +93,16 @@ def main():
         sys.exit(1)
 
     activity = load_activity(sys.argv[1])
-    prompt = build_prompt(activity)
+    prompt   = build_prompt(activity)
 
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-
+    client  = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     message = client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=1024,
         messages=[{"role": "user", "content": prompt}],
     )
 
-    digest = message.content[0].text
-    print(digest)
+    print(message.content[0].text)
 
 if __name__ == "__main__":
     main()
