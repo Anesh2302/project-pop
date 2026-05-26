@@ -4,7 +4,7 @@ generate_digest.py
 Reads multi-repo activity JSON, calls Claude, outputs markdown digest.
 Usage: python generate_digest.py activity.json > digest.md
 """
-import os
+imprt os
 import json
 import sys
 import anthropic
